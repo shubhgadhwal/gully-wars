@@ -1,7 +1,8 @@
+import * as THREE from "/vendor/three/three.module.js";
+
 const $ = (id) => document.getElementById(id),
   socket = io(),
-  canvas = $("arena"),
-  ctx = canvas.getContext("2d");
+  canvas = $("arena");
 let me = null,
   room = null,
   keys = { up: false, down: false, left: false, right: false },
@@ -206,163 +207,215 @@ $("jump").addEventListener("pointerdown", (e) => {
 window.addEventListener("blur", () => {
   keys = { up: false, down: false, left: false, right: false };
 });
-function pixelCar(x, y, scale, color, airborne = false) {
-  const p = Math.max(1, Math.round(scale));
-  const lift = airborne ? 8 * p : 0;
-  ctx.fillStyle = airborne ? "#0005" : "#0009";
-  ctx.fillRect(x - 19 * p, y + 7 * p, 38 * p, 5 * p);
-  ctx.fillStyle = "#111820";
-  ctx.fillRect(x - 22 * p, y - lift, 44 * p, 16 * p);
-  ctx.fillStyle = color;
-  ctx.fillRect(x - 18 * p, y - 8 * p - lift, 36 * p, 18 * p);
-  ctx.fillRect(x - 12 * p, y - 14 * p - lift, 24 * p, 7 * p);
-  ctx.fillStyle = "#9de5f1";
-  ctx.fillRect(x - 8 * p, y - 12 * p - lift, 16 * p, 6 * p);
-  ctx.fillStyle = "#ffe169";
-  ctx.fillRect(x - 16 * p, y + 2 * p - lift, 6 * p, 4 * p);
-  ctx.fillRect(x + 10 * p, y + 2 * p - lift, 6 * p, 4 * p);
-  ctx.fillStyle = "#080b0e";
-  ctx.fillRect(x - 20 * p, y + 10 * p - lift, 8 * p, 7 * p);
-  ctx.fillRect(x + 12 * p, y + 10 * p - lift, 8 * p, 7 * p);
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x83c8e8);
+scene.fog = new THREE.Fog(0x83c8e8, 28, 62);
+const camera = new THREE.PerspectiveCamera(62, 16 / 9, 0.1, 100);
+const carMeshes = new Map();
+const obstacleMeshes = new Map();
+const WORLD_SCALE = 0.045;
+
+scene.add(new THREE.HemisphereLight(0xd8efff, 0x53613e, 2.4));
+const sun = new THREE.DirectionalLight(0xfff2cf, 3.2);
+sun.position.set(-15, 24, -10);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -28;
+sun.shadow.camera.right = 28;
+sun.shadow.camera.top = 22;
+sun.shadow.camera.bottom = -22;
+scene.add(sun);
+
+function material(color, roughness = 0.8, metalness = 0.05) {
+  return new THREE.MeshStandardMaterial({ color, roughness, metalness });
 }
 
-function projectObject(view, x, y) {
-  const dx = x - view.x;
-  const dy = y - view.y;
-  const forward = dx * Math.cos(view.angle) + dy * Math.sin(view.angle);
-  const lateral = -dx * Math.sin(view.angle) + dy * Math.cos(view.angle);
-  if (forward < 15 || forward > 650) return null;
-  const depth = 1 - forward / 650;
-  const scale = 0.22 + depth * 1.05;
-  return {
-    x: 240 + lateral * scale * 0.72,
-    y: 85 + depth * 142,
-    scale,
-    forward,
-  };
+function box(width, height, depth, color) {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(width, height, depth),
+    material(color),
+  );
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function buildArena() {
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(52, 36),
+    material(0x343b3f, 1),
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  const lineMaterial = material(0xe8bd3f, 0.9);
+  for (let x = -18; x <= 18; x += 6) {
+    const line = new THREE.Mesh(
+      new THREE.BoxGeometry(2.6, 0.025, 0.12),
+      lineMaterial,
+    );
+    line.position.set(x, 0.025, 0);
+    scene.add(line);
+  }
+  for (let z = -12; z <= 12; z += 5) {
+    const line = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.025, 2.1),
+      lineMaterial,
+    );
+    line.position.set(0, 0.025, z);
+    scene.add(line);
+  }
+
+  const wallMaterial = material(0xd8b45a);
+  for (const [x, z, width, depth] of [
+    [0, -14.6, 43, 0.8],
+    [0, 14.6, 43, 0.8],
+    [-21.1, 0, 0.8, 30],
+    [21.1, 0, 0.8, 30],
+  ]) {
+    const wall = new THREE.Mesh(
+      new THREE.BoxGeometry(width, 1.1, depth),
+      wallMaterial,
+    );
+    wall.position.set(x, 0.55, z);
+    wall.castShadow = true;
+    wall.receiveShadow = true;
+    scene.add(wall);
+  }
+
+  const shopColors = [0xef654f, 0xf0b83f, 0x42aa99, 0xd779a6, 0x5c89c7];
+  for (let side = -1; side <= 1; side += 2) {
+    for (let i = 0; i < 9; i++) {
+      const height = 2.8 + (i % 3) * 0.65;
+      const shop = box(4, height, 2.8, shopColors[i % shopColors.length]);
+      shop.position.set(-17 + i * 4.25, height / 2, side * 17.2);
+      scene.add(shop);
+      const awning = box(3.7, 0.18, 0.8, i % 2 ? 0xffe28a : 0xe85244);
+      awning.position.set(shop.position.x, 1.3, side * 15.7);
+      scene.add(awning);
+    }
+  }
+}
+
+function createCar(color) {
+  const group = new THREE.Group();
+  const body = box(2.5, 0.68, 1.45, color);
+  body.position.y = 0.62;
+  group.add(body);
+  const hood = box(0.8, 0.28, 1.3, color);
+  hood.position.set(1.45, 0.73, 0);
+  group.add(hood);
+  const cabin = box(1.15, 0.58, 1.16, 0xa6ddeb);
+  cabin.position.set(-0.25, 1.15, 0);
+  group.add(cabin);
+  const bumper = box(0.18, 0.28, 1.56, 0x14191e);
+  bumper.position.set(1.76, 0.45, 0);
+  group.add(bumper);
+  for (const x of [-0.85, 0.95]) {
+    for (const z of [-0.78, 0.78]) {
+      const wheel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.33, 0.33, 0.28, 14),
+        material(0x0b0d0f, 0.9),
+      );
+      wheel.rotation.x = Math.PI / 2;
+      wheel.position.set(x, 0.37, z);
+      wheel.castShadow = true;
+      group.add(wheel);
+    }
+  }
+  group.scale.setScalar(0.82);
+  return group;
+}
+
+function syncArena(m, now) {
+  for (const o of m.obstacles) {
+    let mesh = obstacleMeshes.get(o.id);
+    if (!mesh) {
+      mesh = box(1.15, 1.15, 1.15, o.id % 3 ? 0xa66835 : 0xe5a22f);
+      obstacleMeshes.set(o.id, mesh);
+      scene.add(mesh);
+    }
+    mesh.visible = o.hp > 0;
+    mesh.position.set(
+      (o.x - 450) * WORLD_SCALE,
+      0.58,
+      (o.y - 300) * WORLD_SCALE,
+    );
+    mesh.rotation.y = o.id * 0.47;
+  }
+
+  for (const id of m.ids) {
+    let mesh = carMeshes.get(id);
+    if (!mesh) {
+      mesh = createCar(player(id)?.color || "#ffffff");
+      carMeshes.set(id, mesh);
+      scene.add(mesh);
+    }
+    const car = m.cars[id];
+    const jumping = now < car.jumpUntil;
+    const progress = jumping ? 1 - (car.jumpUntil - now) / 650 : 0;
+    mesh.position.set(
+      (car.x - 450) * WORLD_SCALE,
+      0.05 + (jumping ? Math.sin(progress * Math.PI) * 2.2 : 0),
+      (car.y - 300) * WORLD_SCALE,
+    );
+    mesh.rotation.y = -car.angle;
+    mesh.rotation.z = jumping ? Math.sin(progress * Math.PI) * -0.12 : 0;
+  }
+}
+
+function resizeRenderer() {
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  const pixelRatio = renderer.getPixelRatio();
+  if (
+    canvas.width !== Math.round(width * pixelRatio) ||
+    canvas.height !== Math.round(height * pixelRatio)
+  ) {
+    renderer.setSize(width, height, false);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+  }
 }
 
 function draw() {
   requestAnimationFrame(draw);
-  if (!room || !["playing", "final"].includes(room.status)) return;
+  resizeRenderer();
+  if (!room || !["playing", "final"].includes(room.status)) {
+    renderer.render(scene, camera);
+    return;
+  }
   const m = myMatch();
-  const view = m?.cars[me.id];
-  if (!m || !view) return;
+  const car = m?.cars[me.id];
+  if (!m || !car) return;
   const now = Date.now();
+  syncArena(m, now);
 
-  ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = "#35a7c8";
-  ctx.fillRect(0, 0, 480, 88);
-  ctx.fillStyle = "#f7cc59";
-  ctx.fillRect(382, 18, 28, 28);
-  ctx.fillStyle = "#9ad06d";
-  ctx.fillRect(0, 70, 480, 78);
-
-  const skyline = [28, 42, 33, 55, 38, 49, 31, 58, 40, 47, 35, 52];
-  skyline.forEach((height, i) => {
-    const x = i * 42 - 5;
-    ctx.fillStyle = ["#ef6555", "#f2bb4c", "#4eb39f", "#d982aa"][i % 4];
-    ctx.fillRect(x, 86 - height, 37, height);
-    ctx.fillStyle = "#24313b";
-    for (let wy = 0; wy < height - 10; wy += 12)
-      ctx.fillRect(x + 6 + ((wy / 12) % 2) * 13, 82 - height + wy, 7, 6);
-    ctx.fillStyle = "#fff0be";
-    ctx.fillRect(x + 3, 83, 31, 5);
-  });
-
-  ctx.fillStyle = "#2e353b";
-  ctx.beginPath();
-  ctx.moveTo(202, 84);
-  ctx.lineTo(278, 84);
-  ctx.lineTo(470, 270);
-  ctx.lineTo(10, 270);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = "#d9d0a8";
-  ctx.beginPath();
-  ctx.moveTo(195, 84);
-  ctx.lineTo(202, 84);
-  ctx.lineTo(10, 270);
-  ctx.lineTo(0, 270);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(278, 84);
-  ctx.lineTo(285, 84);
-  ctx.lineTo(480, 270);
-  ctx.lineTo(470, 270);
-  ctx.closePath();
-  ctx.fill();
-
-  const phase = (now / 12 + Math.abs(view.speed) * 20) % 42;
-  ctx.fillStyle = "#f3ce42";
-  for (let i = 0; i < 7; i++) {
-    const y = 92 + i * 27 + phase * (i / 9);
-    const width = 2 + i * 2.2;
-    ctx.fillRect(240 - width / 2, y, width, 8 + i * 2);
-  }
-
-  const visible = [];
-  for (const o of m.obstacles) {
-    if (o.hp <= 0) continue;
-    const projected = projectObject(view, o.x, o.y);
-    if (projected) visible.push({ type: "crate", ...projected, object: o });
-  }
-  const rivalId = m.ids.find((id) => id !== me.id);
-  const rival = m.cars[rivalId];
-  const rivalProjection = projectObject(view, rival.x, rival.y);
-  if (rivalProjection)
-    visible.push({ type: "rival", ...rivalProjection, object: rival });
-  visible.sort((a, b) => b.forward - a.forward);
-
-  for (const item of visible) {
-    const size = Math.max(1, Math.round(item.scale * 2));
-    if (item.type === "crate") {
-      ctx.fillStyle = "#17120c88";
-      ctx.fillRect(item.x - 9 * size, item.y + 5 * size, 18 * size, 4 * size);
-      ctx.fillStyle = item.object.id % 3 ? "#a96835" : "#eda72f";
-      ctx.fillRect(item.x - 8 * size, item.y - 8 * size, 16 * size, 15 * size);
-      ctx.fillStyle = "#ffe29a";
-      ctx.fillRect(item.x - 6 * size, item.y - size, 12 * size, 2 * size);
-    } else {
-      const airborne = now < item.object.jumpUntil;
-      pixelCar(
-        item.x,
-        item.y,
-        Math.max(0.6, item.scale),
-        player(rivalId)?.color || "#e84d45",
-        airborne,
-      );
-      ctx.fillStyle = "#10161d";
-      ctx.fillRect(item.x - 30, item.y - 31, 60, 9);
-      ctx.fillStyle = "#ff665c";
-      ctx.fillRect(item.x - 29, item.y - 30, (58 * item.object.hp) / 100, 7);
-    }
-  }
-
-  const jumping = now < view.jumpUntil;
-  const jumpProgress = jumping ? 1 - (view.jumpUntil - now) / 650 : 0;
-  const jumpLift = jumping ? Math.sin(jumpProgress * Math.PI) * 22 : 0;
-  pixelCar(240, 230 - jumpLift, 2, player(me.id)?.color || "#49c4f5", jumping);
-
-  if (now - view.lastHit < 180) {
-    ctx.fillStyle = "#ffef8a55";
-    ctx.fillRect(0, 0, 480, 270);
-  }
-  ctx.fillStyle = "#111820dd";
-  ctx.fillRect(8, 8, 150, 43);
-  ctx.fillStyle = "#ffc43d";
-  ctx.font = "900 11px monospace";
-  ctx.fillText("BAZAAR BRAWL", 16, 23);
-  ctx.fillStyle = "#fff";
-  ctx.font = "700 10px monospace";
-  ctx.fillText(
-    `${Math.ceil(view.hp)} HP  |  ${Math.ceil(Math.abs(view.speed) * 18)} KM/H`,
-    16,
-    40,
+  const px = (car.x - 450) * WORLD_SCALE;
+  const pz = (car.y - 300) * WORLD_SCALE;
+  const forward = new THREE.Vector3(
+    Math.cos(car.angle),
+    0,
+    Math.sin(car.angle),
   );
-  const jumpReady = now >= view.jumpCooldown;
-  ctx.fillStyle = jumpReady ? "#45e58a" : "#dce4ea";
-  ctx.fillText(jumpReady ? "[SPACE] JUMP READY" : "JUMP RECHARGING", 326, 20);
+  const targetPosition = new THREE.Vector3(px, 0.9, pz)
+    .addScaledVector(forward, -7.6)
+    .add(new THREE.Vector3(0, 4.4, 0));
+  camera.position.lerp(targetPosition, 0.12);
+  const lookAt = new THREE.Vector3(px, 1, pz).addScaledVector(forward, 5.5);
+  camera.lookAt(lookAt);
+  renderer.render(scene, camera);
 }
+
+buildArena();
+camera.position.set(0, 8, 14);
+camera.lookAt(0, 0, 0);
 requestAnimationFrame(draw);

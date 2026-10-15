@@ -3,6 +3,7 @@ import http from "node:http";
 import { Server } from "socket.io";
 import crypto from "node:crypto";
 const app = express();
+app.use("/vendor/three", express.static("node_modules/three/build"));
 app.use(express.static("public"));
 app.get("/health", (_, res) => res.json({ ok: true }));
 const httpServer = http.createServer(app),
