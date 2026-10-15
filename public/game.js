@@ -206,137 +206,163 @@ $("jump").addEventListener("pointerdown", (e) => {
 window.addEventListener("blur", () => {
   keys = { up: false, down: false, left: false, right: false };
 });
+function pixelCar(x, y, scale, color, airborne = false) {
+  const p = Math.max(1, Math.round(scale));
+  const lift = airborne ? 8 * p : 0;
+  ctx.fillStyle = airborne ? "#0005" : "#0009";
+  ctx.fillRect(x - 19 * p, y + 7 * p, 38 * p, 5 * p);
+  ctx.fillStyle = "#111820";
+  ctx.fillRect(x - 22 * p, y - lift, 44 * p, 16 * p);
+  ctx.fillStyle = color;
+  ctx.fillRect(x - 18 * p, y - 8 * p - lift, 36 * p, 18 * p);
+  ctx.fillRect(x - 12 * p, y - 14 * p - lift, 24 * p, 7 * p);
+  ctx.fillStyle = "#9de5f1";
+  ctx.fillRect(x - 8 * p, y - 12 * p - lift, 16 * p, 6 * p);
+  ctx.fillStyle = "#ffe169";
+  ctx.fillRect(x - 16 * p, y + 2 * p - lift, 6 * p, 4 * p);
+  ctx.fillRect(x + 10 * p, y + 2 * p - lift, 6 * p, 4 * p);
+  ctx.fillStyle = "#080b0e";
+  ctx.fillRect(x - 20 * p, y + 10 * p - lift, 8 * p, 7 * p);
+  ctx.fillRect(x + 12 * p, y + 10 * p - lift, 8 * p, 7 * p);
+}
+
+function projectObject(view, x, y) {
+  const dx = x - view.x;
+  const dy = y - view.y;
+  const forward = dx * Math.cos(view.angle) + dy * Math.sin(view.angle);
+  const lateral = -dx * Math.sin(view.angle) + dy * Math.cos(view.angle);
+  if (forward < 15 || forward > 650) return null;
+  const depth = 1 - forward / 650;
+  const scale = 0.22 + depth * 1.05;
+  return {
+    x: 240 + lateral * scale * 0.72,
+    y: 85 + depth * 142,
+    scale,
+    forward,
+  };
+}
+
 function draw() {
   requestAnimationFrame(draw);
   if (!room || !["playing", "final"].includes(room.status)) return;
   const m = myMatch();
-  if (!m) return;
+  const view = m?.cars[me.id];
+  if (!m || !view) return;
   const now = Date.now();
-  const road = ctx.createLinearGradient(0, 0, 0, 600);
-  road.addColorStop(0, "#343b42");
-  road.addColorStop(0.5, "#252c32");
-  road.addColorStop(1, "#30373d");
-  ctx.fillStyle = "#778c69";
-  ctx.fillRect(0, 0, 900, 600);
-  ctx.fillStyle = road;
-  ctx.fillRect(58, 0, 784, 600);
-  ctx.fillRect(0, 76, 900, 448);
 
-  ctx.strokeStyle = "#151a1e";
-  ctx.lineWidth = 8;
-  ctx.strokeRect(62, 80, 776, 440);
-  ctx.strokeStyle = "#f2c84b";
-  ctx.lineWidth = 3;
-  ctx.setLineDash([34, 24]);
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = "#35a7c8";
+  ctx.fillRect(0, 0, 480, 88);
+  ctx.fillStyle = "#f7cc59";
+  ctx.fillRect(382, 18, 28, 28);
+  ctx.fillStyle = "#9ad06d";
+  ctx.fillRect(0, 70, 480, 78);
+
+  const skyline = [28, 42, 33, 55, 38, 49, 31, 58, 40, 47, 35, 52];
+  skyline.forEach((height, i) => {
+    const x = i * 42 - 5;
+    ctx.fillStyle = ["#ef6555", "#f2bb4c", "#4eb39f", "#d982aa"][i % 4];
+    ctx.fillRect(x, 86 - height, 37, height);
+    ctx.fillStyle = "#24313b";
+    for (let wy = 0; wy < height - 10; wy += 12)
+      ctx.fillRect(x + 6 + ((wy / 12) % 2) * 13, 82 - height + wy, 7, 6);
+    ctx.fillStyle = "#fff0be";
+    ctx.fillRect(x + 3, 83, 31, 5);
+  });
+
+  ctx.fillStyle = "#2e353b";
   ctx.beginPath();
-  ctx.moveTo(450, 0);
-  ctx.lineTo(450, 600);
-  ctx.moveTo(0, 300);
-  ctx.lineTo(900, 300);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  ctx.moveTo(202, 84);
+  ctx.lineTo(278, 84);
+  ctx.lineTo(470, 270);
+  ctx.lineTo(10, 270);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#d9d0a8";
+  ctx.beginPath();
+  ctx.moveTo(195, 84);
+  ctx.lineTo(202, 84);
+  ctx.lineTo(10, 270);
+  ctx.lineTo(0, 270);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(278, 84);
+  ctx.lineTo(285, 84);
+  ctx.lineTo(480, 270);
+  ctx.lineTo(470, 270);
+  ctx.closePath();
+  ctx.fill();
 
-  for (let i = 0; i < 12; i++) {
-    const x = (i % 6) * 150 + 12;
-    const y = i < 6 ? 8 : 544;
-    ctx.fillStyle = "#11161b55";
-    ctx.fillRect(x + 6, y + 7, 126, 48);
-    ctx.fillStyle = ["#ee6b4d", "#f1c75b", "#4fb6a8", "#db8cb3"][i % 4];
-    ctx.fillRect(x, y, 126, 48);
-    ctx.fillStyle = "#26313a";
-    ctx.fillRect(x + 7, y + 29, 112, 15);
-    ctx.fillStyle = "#fff3d1";
-    ctx.font = "800 11px system-ui";
-    ctx.textAlign = "center";
-    ctx.fillText(["CHAI STOP", "KIRANA", "PANI PURI", "AUTO WORKS"][i % 4], x + 63, y + 20);
+  const phase = (now / 12 + Math.abs(view.speed) * 20) % 42;
+  ctx.fillStyle = "#f3ce42";
+  for (let i = 0; i < 7; i++) {
+    const y = 92 + i * 27 + phase * (i / 9);
+    const width = 2 + i * 2.2;
+    ctx.fillRect(240 - width / 2, y, width, 8 + i * 2);
   }
 
-  ctx.fillStyle = "#f6f1df";
-  for (let x = 78; x < 840; x += 48) {
-    ctx.fillRect(x, 86, 27, 6);
-    ctx.fillRect(x, 508, 27, 6);
-  }
+  const visible = [];
   for (const o of m.obstacles) {
     if (o.hp <= 0) continue;
-    ctx.fillStyle = "#080b0d66";
-    ctx.beginPath();
-    ctx.ellipse(o.x + 4, o.y + 10, 19, 8, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = o.id % 3 === 0 ? "#f3a928" : "#a96f3f";
-    ctx.fillRect(o.x - 16, o.y - 14, 32, 27);
-    ctx.strokeStyle = "#47301d";
-    ctx.lineWidth = 3;
-    ctx.strokeRect(o.x - 16, o.y - 14, 32, 27);
-    ctx.strokeStyle = "#ffe091";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(o.x - 13, o.y - 8);
-    ctx.lineTo(o.x + 13, o.y + 7);
-    ctx.moveTo(o.x + 13, o.y - 8);
-    ctx.lineTo(o.x - 13, o.y + 7);
-    ctx.stroke();
+    const projected = projectObject(view, o.x, o.y);
+    if (projected) visible.push({ type: "crate", ...projected, object: o });
   }
-  for (const id of m.ids) {
-    const c = m.cars[id];
-    const airborne = now < c.jumpUntil;
-    const jumpProgress = airborne ? 1 - (c.jumpUntil - now) / 650 : 0;
-    const lift = airborne ? Math.sin(jumpProgress * Math.PI) * 22 : 0;
-    ctx.save();
-    ctx.translate(c.x + 5, c.y + 8);
-    ctx.rotate(c.angle);
-    ctx.scale(1 - lift / 120, 1 - lift / 120);
-    ctx.fillStyle = `rgba(0,0,0,${airborne ? 0.2 : 0.48})`;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 28, 18, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-    ctx.save();
-    ctx.translate(c.x, c.y - lift);
-    ctx.rotate(c.angle);
-    ctx.fillStyle = "#090c0f";
-    ctx.fillRect(-23, -18, 46, 8);
-    ctx.fillRect(-23, 10, 46, 8);
-    ctx.fillStyle = player(id)?.color || "#fff";
-    ctx.beginPath();
-    ctx.roundRect(-24, -15, 48, 30, 8);
-    ctx.fill();
-    ctx.fillStyle = "#b9ecf6";
-    ctx.beginPath();
-    ctx.roundRect(-5, -12, 17, 24, 5);
-    ctx.fill();
-    ctx.fillStyle = "#fff0a8";
-    ctx.fillRect(18, -11, 6, 7);
-    ctx.fillRect(18, 4, 6, 7);
-    ctx.fillStyle = "#f04438";
-    ctx.fillRect(-24, -11, 5, 7);
-    ctx.fillRect(-24, 4, 5, 7);
-    ctx.strokeStyle = "#ffffffbb";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(-14, -12, 6, 24);
-    ctx.restore();
-    ctx.font = "800 13px system-ui";
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#10151b";
-    ctx.fillRect(c.x - 35, c.y - 48 - lift, 70, 18);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillText(player(id)?.name || "Car", c.x, c.y - 35 - lift);
-    ctx.fillStyle = "#111";
-    ctx.fillRect(c.x - 30, c.y - 27 - lift, 60, 6);
-    ctx.fillStyle = c.hp > 40 ? "#55db75" : "#ff544a";
-    ctx.fillRect(c.x - 30, c.y - 27 - lift, (60 * c.hp) / 100, 6);
+  const rivalId = m.ids.find((id) => id !== me.id);
+  const rival = m.cars[rivalId];
+  const rivalProjection = projectObject(view, rival.x, rival.y);
+  if (rivalProjection)
+    visible.push({ type: "rival", ...rivalProjection, object: rival });
+  visible.sort((a, b) => b.forward - a.forward);
+
+  for (const item of visible) {
+    const size = Math.max(1, Math.round(item.scale * 2));
+    if (item.type === "crate") {
+      ctx.fillStyle = "#17120c88";
+      ctx.fillRect(item.x - 9 * size, item.y + 5 * size, 18 * size, 4 * size);
+      ctx.fillStyle = item.object.id % 3 ? "#a96835" : "#eda72f";
+      ctx.fillRect(item.x - 8 * size, item.y - 8 * size, 16 * size, 15 * size);
+      ctx.fillStyle = "#ffe29a";
+      ctx.fillRect(item.x - 6 * size, item.y - size, 12 * size, 2 * size);
+    } else {
+      const airborne = now < item.object.jumpUntil;
+      pixelCar(
+        item.x,
+        item.y,
+        Math.max(0.6, item.scale),
+        player(rivalId)?.color || "#e84d45",
+        airborne,
+      );
+      ctx.fillStyle = "#10161d";
+      ctx.fillRect(item.x - 30, item.y - 31, 60, 9);
+      ctx.fillStyle = "#ff665c";
+      ctx.fillRect(item.x - 29, item.y - 30, (58 * item.object.hp) / 100, 7);
+    }
   }
-  ctx.textAlign = "left";
-  ctx.fillStyle = "#11171d";
-  ctx.fillRect(14, 108, 188, 38);
+
+  const jumping = now < view.jumpUntil;
+  const jumpProgress = jumping ? 1 - (view.jumpUntil - now) / 650 : 0;
+  const jumpLift = jumping ? Math.sin(jumpProgress * Math.PI) * 22 : 0;
+  pixelCar(240, 230 - jumpLift, 2, player(me.id)?.color || "#49c4f5", jumping);
+
+  if (now - view.lastHit < 180) {
+    ctx.fillStyle = "#ffef8a55";
+    ctx.fillRect(0, 0, 480, 270);
+  }
+  ctx.fillStyle = "#111820dd";
+  ctx.fillRect(8, 8, 150, 43);
   ctx.fillStyle = "#ffc43d";
-  ctx.font = "900 16px system-ui";
-  ctx.fillText("DELHI BAZAAR BRAWL", 26, 133);
-  const c = m.cars[me.id];
-  if (c) {
-    const ready = now >= c.jumpCooldown;
-    ctx.fillStyle = ready ? "#50d890" : "#ffffff";
-    ctx.font = "800 13px system-ui";
-    ctx.fillText(ready ? "SPACE: JUMP READY" : "JUMP RECHARGING", 26, 164);
-  }
+  ctx.font = "900 11px monospace";
+  ctx.fillText("BAZAAR BRAWL", 16, 23);
+  ctx.fillStyle = "#fff";
+  ctx.font = "700 10px monospace";
+  ctx.fillText(
+    `${Math.ceil(view.hp)} HP  |  ${Math.ceil(Math.abs(view.speed) * 18)} KM/H`,
+    16,
+    40,
+  );
+  const jumpReady = now >= view.jumpCooldown;
+  ctx.fillStyle = jumpReady ? "#45e58a" : "#dce4ea";
+  ctx.fillText(jumpReady ? "[SPACE] JUMP READY" : "JUMP RECHARGING", 326, 20);
 }
 requestAnimationFrame(draw);
