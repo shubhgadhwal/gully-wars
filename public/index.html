@@ -1,1 +1,80 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>Gully Wars — Trivia Demolition</title><link rel="stylesheet" href="/style.css"></head><body><main><header><h1>🚕 GULLY <span>WARS</span></h1><p>TRIVIA DEMOLITION · INDIA SHOWDOWN</p></header><section id="setup" class="panel"><h2>Enter the street</h2><input id="name" maxlength="18" placeholder="Your driver name" value="Driver"><input id="code" maxlength="6" placeholder="Room code (leave blank to create)"><button id="join">Create / Join Room</button><p id="message"></p><p class="small">4 players · 2 semi-finals · 1 grand champion</p></section><section id="lobby" class="panel hidden"><h2>Room <strong id="roomcode"></strong></h2><button id="copy">Copy invite link</button><div id="players"></div><button id="ready">I'm Ready</button><button id="bots" class="hidden">Fill empty slots with bots</button><button id="start" class="hidden">Start Tournament</button><p class="small">Invite friends or fill the empty slots with computer drivers.</p></section><section id="game" class="hidden"><div id="hud"><div id="matchlabel"></div><div id="health"></div><div id="clock"></div></div><div id="stage"><canvas id="arena" width="900" height="600"></canvas><div id="quiz" class="hidden"></div><div id="spectator" class="hidden"></div></div><div id="touch"><div class="steer"><button data-key="left">◀</button><button data-key="right">▶</button></div><div class="pedals"><button data-key="down">BRAKE</button><button data-key="up">GAS</button><button id="nitro">⚡ NITRO</button></div></div><p class="small">WASD / arrows to drive · Space for nitro · Ram the other car · Trivia earns nitro and repairs</p></section><section id="end" class="panel hidden"><h2 id="endtitle"></h2><div id="results"></div><button id="final" class="hidden">Start Grand Final</button></section></main><script src="/socket.io/socket.io.js"></script><script src="/game.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <title>Gully Wars — Trivia Demolition</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>🚕 GULLY <span>WARS</span></h1>
+        <p>TRIVIA DEMOLITION · INDIA SHOWDOWN</p>
+      </header>
+      <section id="setup" class="panel">
+        <h2>Enter the street</h2>
+        <input
+          id="name"
+          maxlength="18"
+          placeholder="Your driver name"
+          value="Driver"
+        /><input
+          id="code"
+          maxlength="6"
+          placeholder="Room code (leave blank to create)"
+        /><button id="join">Create / Join Room</button>
+        <p id="message"></p>
+        <p class="small">4 players · 2 semi-finals · 1 grand champion</p>
+      </section>
+      <section id="lobby" class="panel hidden">
+        <h2>Room <strong id="roomcode"></strong></h2>
+        <button id="copy">Copy invite link</button>
+        <div id="players"></div>
+        <button id="ready">I'm Ready</button
+        ><button id="bots" class="hidden">Fill empty slots with bots</button
+        ><button id="start" class="hidden">Start Tournament</button>
+        <p class="small">
+          Invite friends or fill the empty slots with computer drivers.
+        </p>
+      </section>
+      <section id="game" class="hidden">
+        <div id="hud">
+          <div id="matchlabel"></div>
+          <div id="health"></div>
+          <div id="clock"></div>
+        </div>
+        <div id="stage">
+          <canvas id="arena" width="900" height="600"></canvas>
+          <div id="quiz" class="hidden"></div>
+          <div id="spectator" class="hidden"></div>
+        </div>
+        <div id="touch">
+          <div class="steer">
+            <button data-key="left">◀</button
+            ><button data-key="right">▶</button>
+          </div>
+          <div class="pedals">
+            <button data-key="down">BRAKE</button
+            ><button data-key="up">GAS</button
+            ><button id="jump">JUMP</button>
+          </div>
+        </div>
+        <p class="small">
+          WASD / arrows to drive · Space to jump and knock rivals back · Fast
+          trivia answers repair your car
+        </p>
+      </section>
+      <section id="end" class="panel hidden">
+        <h2 id="endtitle"></h2>
+        <div id="results"></div>
+        <button id="final" class="hidden">Start Grand Final</button>
+      </section>
+    </main>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/game.js"></script>
+  </body>
+</html>
